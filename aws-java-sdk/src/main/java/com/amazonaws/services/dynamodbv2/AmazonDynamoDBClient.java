@@ -1,12 +1,12 @@
 /*
  * Copyright 2010-2014 Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
  * A copy of the License is located at
- * 
+ *
  *  http://aws.amazon.com/apache2.0
- * 
+ *
  * or in the "license" file accompanying this file. This file is distributed
  * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
  * express or implied. See the License for the specific language governing
@@ -14,26 +14,112 @@
  */
 package com.amazonaws.services.dynamodbv2;
 
-import java.net.*;
-import java.util.*;
-
-import org.apache.commons.logging.*;
-
-import com.amazonaws.*;
-import com.amazonaws.regions.*;
-import com.amazonaws.auth.*;
-import com.amazonaws.handlers.*;
-import com.amazonaws.http.*;
-import com.amazonaws.regions.*;
-import com.amazonaws.internal.*;
-import com.amazonaws.metrics.*;
-import com.amazonaws.transform.*;
-import com.amazonaws.util.*;
+import com.amazonaws.AmazonClientException;
+import com.amazonaws.AmazonServiceException;
+import com.amazonaws.AmazonWebServiceClient;
+import com.amazonaws.AmazonWebServiceRequest;
+import com.amazonaws.AmazonWebServiceResponse;
+import com.amazonaws.ClientConfiguration;
+import com.amazonaws.Request;
+import com.amazonaws.Response;
+import com.amazonaws.ResponseMetadata;
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
+import com.amazonaws.handlers.HandlerChainFactory;
+import com.amazonaws.http.ExecutionContext;
+import com.amazonaws.http.HttpResponseHandler;
+import com.amazonaws.http.JsonErrorResponseHandler;
+import com.amazonaws.http.JsonResponseHandler;
+import com.amazonaws.internal.StaticCredentialsProvider;
+import com.amazonaws.metrics.AwsSdkMetrics;
+import com.amazonaws.metrics.RequestMetricCollector;
+import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
+import com.amazonaws.services.dynamodbv2.model.AttributeValue;
+import com.amazonaws.services.dynamodbv2.model.AttributeValueUpdate;
+import com.amazonaws.services.dynamodbv2.model.BatchGetItemRequest;
+import com.amazonaws.services.dynamodbv2.model.BatchGetItemResult;
+import com.amazonaws.services.dynamodbv2.model.BatchWriteItemRequest;
+import com.amazonaws.services.dynamodbv2.model.BatchWriteItemResult;
+import com.amazonaws.services.dynamodbv2.model.Condition;
+import com.amazonaws.services.dynamodbv2.model.ConditionalCheckFailedException;
+import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
+import com.amazonaws.services.dynamodbv2.model.CreateTableResult;
+import com.amazonaws.services.dynamodbv2.model.DeleteItemRequest;
+import com.amazonaws.services.dynamodbv2.model.DeleteItemResult;
+import com.amazonaws.services.dynamodbv2.model.DeleteTableRequest;
+import com.amazonaws.services.dynamodbv2.model.DeleteTableResult;
+import com.amazonaws.services.dynamodbv2.model.DescribeTableRequest;
+import com.amazonaws.services.dynamodbv2.model.DescribeTableResult;
+import com.amazonaws.services.dynamodbv2.model.GetItemRequest;
+import com.amazonaws.services.dynamodbv2.model.GetItemResult;
+import com.amazonaws.services.dynamodbv2.model.InternalServerErrorException;
+import com.amazonaws.services.dynamodbv2.model.ItemCollectionSizeLimitExceededException;
+import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
+import com.amazonaws.services.dynamodbv2.model.KeysAndAttributes;
+import com.amazonaws.services.dynamodbv2.model.LimitExceededException;
+import com.amazonaws.services.dynamodbv2.model.ListTablesRequest;
+import com.amazonaws.services.dynamodbv2.model.ListTablesResult;
+import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
+import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughputExceededException;
+import com.amazonaws.services.dynamodbv2.model.PutItemRequest;
+import com.amazonaws.services.dynamodbv2.model.PutItemResult;
+import com.amazonaws.services.dynamodbv2.model.QueryRequest;
+import com.amazonaws.services.dynamodbv2.model.QueryResult;
+import com.amazonaws.services.dynamodbv2.model.ResourceInUseException;
+import com.amazonaws.services.dynamodbv2.model.ResourceNotFoundException;
+import com.amazonaws.services.dynamodbv2.model.ScanRequest;
+import com.amazonaws.services.dynamodbv2.model.ScanResult;
+import com.amazonaws.services.dynamodbv2.model.UpdateItemRequest;
+import com.amazonaws.services.dynamodbv2.model.UpdateItemResult;
+import com.amazonaws.services.dynamodbv2.model.UpdateTableRequest;
+import com.amazonaws.services.dynamodbv2.model.UpdateTableResult;
+import com.amazonaws.services.dynamodbv2.model.WriteRequest;
+import com.amazonaws.services.dynamodbv2.model.transform.BatchGetItemRequestMarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.BatchGetItemResultJsonUnmarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.BatchWriteItemRequestMarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.BatchWriteItemResultJsonUnmarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.ConditionalCheckFailedExceptionUnmarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.CreateTableRequestMarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.CreateTableResultJsonUnmarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.DeleteItemRequestMarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.DeleteItemResultJsonUnmarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.DeleteTableRequestMarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.DeleteTableResultJsonUnmarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.DescribeTableRequestMarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.DescribeTableResultJsonUnmarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.GetItemRequestMarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.GetItemResultJsonUnmarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.InternalServerErrorExceptionUnmarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.ItemCollectionSizeLimitExceededExceptionUnmarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.LimitExceededExceptionUnmarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.ListTablesRequestMarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.ListTablesResultJsonUnmarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.ProvisionedThroughputExceededExceptionUnmarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.PutItemRequestMarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.PutItemResultJsonUnmarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.QueryRequestMarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.QueryResultJsonUnmarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.ResourceInUseExceptionUnmarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.ResourceNotFoundExceptionUnmarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.ScanRequestMarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.ScanResultJsonUnmarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.UpdateItemRequestMarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.UpdateItemResultJsonUnmarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.UpdateTableRequestMarshaller;
+import com.amazonaws.services.dynamodbv2.model.transform.UpdateTableResultJsonUnmarshaller;
+import com.amazonaws.transform.JsonErrorUnmarshaller;
+import com.amazonaws.transform.JsonUnmarshallerContext;
+import com.amazonaws.transform.Unmarshaller;
+import com.amazonaws.util.AWSRequestMetrics;
 import com.amazonaws.util.AWSRequestMetrics.Field;
-import com.amazonaws.util.json.*;
 
-import com.amazonaws.services.dynamodbv2.model.*;
-import com.amazonaws.services.dynamodbv2.model.transform.*;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Client for accessing AmazonDynamoDBv2.  All service calls made
@@ -72,7 +158,7 @@ import com.amazonaws.services.dynamodbv2.model.transform.*;
  * <b>Managing Tables</b>
  * </p>
  * <p>
- * 
+ *
  * <ul>
  * <li> <p>
  * <i>CreateTable</i> - Creates a table with user-specified provisioned
@@ -104,9 +190,9 @@ import com.amazonaws.services.dynamodbv2.model.transform.*;
  * <i>DeleteTable</i> - Deletes a table and all of its indexes.
  * </p>
  * </li>
- * 
+ *
  * </ul>
- * 
+ *
  * </p>
  * <p>
  * For conceptual information about managing tables, go to
@@ -117,7 +203,7 @@ import com.amazonaws.services.dynamodbv2.model.transform.*;
  * <b>Reading Data</b>
  * </p>
  * <p>
- * 
+ *
  * <ul>
  * <li> <p>
  * <i>GetItem</i> - Returns a set of attributes for the item that has a
@@ -152,9 +238,9 @@ import com.amazonaws.services.dynamodbv2.model.transform.*;
  * query use case that requires predictable performance.
  * </p>
  * </li>
- * 
+ *
  * </ul>
- * 
+ *
  * </p>
  * <p>
  * For conceptual information about reading data, go to
@@ -165,7 +251,7 @@ import com.amazonaws.services.dynamodbv2.model.transform.*;
  * <b>Modifying Data</b>
  * </p>
  * <p>
- * 
+ *
  * <ul>
  * <li> <p>
  * <i>PutItem</i> - Creates a new item, or replaces an existing item
@@ -197,9 +283,9 @@ import com.amazonaws.services.dynamodbv2.model.transform.*;
  * items to put or delete, with a maximum total request size of 1 MB.
  * </p>
  * </li>
- * 
+ *
  * </ul>
- * 
+ *
  * </p>
  * <p>
  * For conceptual information about modifying data, go to
@@ -216,6 +302,9 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
 
     /** Provider for AWS credentials. */
     private AWSCredentialsProvider awsCredentialsProvider;
+
+    /** Debugger of requests */
+    private RequestDebugger requestDebugger;
 
     private static final Log log = LogFactory.getLog(AmazonDynamoDB.class);
 
@@ -271,7 +360,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
     /**
      * Constructs a new client to invoke service methods on
      * AmazonDynamoDBv2 using the specified AWS account credentials.
-     * 
+     *
      * <p>
      * All service calls made using this new client object are blocking, and will not
      * return until the service call completes.
@@ -287,7 +376,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * Constructs a new client to invoke service methods on
      * AmazonDynamoDBv2 using the specified AWS account credentials
      * and client configuration options.
-     * 
+     *
      * <p>
      * All service calls made using this new client object are blocking, and will not
      * return until the service call completes.
@@ -300,16 +389,16 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      */
     public AmazonDynamoDBClient(AWSCredentials awsCredentials, ClientConfiguration clientConfiguration) {
         super(adjustClientConfiguration(clientConfiguration));
-        
+
         this.awsCredentialsProvider = new StaticCredentialsProvider(awsCredentials);
-        
+
         init();
     }
 
     /**
      * Constructs a new client to invoke service methods on
      * AmazonDynamoDBv2 using the specified AWS account credentials provider.
-     * 
+     *
      * <p>
      * All service calls made using this new client object are blocking, and will not
      * return until the service call completes.
@@ -326,7 +415,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * Constructs a new client to invoke service methods on
      * AmazonDynamoDBv2 using the specified AWS account credentials
      * provider and client configuration options.
-     * 
+     *
      * <p>
      * All service calls made using this new client object are blocking, and will not
      * return until the service call completes.
@@ -346,7 +435,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * Constructs a new client to invoke service methods on
      * AmazonDynamoDBv2 using the specified AWS account credentials
      * provider, client configuration options and request metric collector.
-     * 
+     *
      * <p>
      * All service calls made using this new client object are blocking, and will not
      * return until the service call completes.
@@ -363,9 +452,9 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
             ClientConfiguration clientConfiguration,
             RequestMetricCollector requestMetricCollector) {
         super(adjustClientConfiguration(clientConfiguration), requestMetricCollector);
-        
+
         this.awsCredentialsProvider = awsCredentialsProvider;
-        
+
         init();
     }
 
@@ -378,12 +467,12 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
         jsonErrorUnmarshallers.add(new InternalServerErrorExceptionUnmarshaller());
         jsonErrorUnmarshallers.add(new ResourceInUseExceptionUnmarshaller());
         jsonErrorUnmarshallers.add(new ResourceNotFoundExceptionUnmarshaller());
-        
+
         jsonErrorUnmarshallers.add(new JsonErrorUnmarshaller());
-        
+
         // calling this.setEndPoint(...) will also modify the signer accordingly
         this.setEndpoint("dynamodb.us-east-1.amazonaws.com/");
-        
+
         HandlerChainFactory chainFactory = new HandlerChainFactory();
         requestHandler2s.addAll(chainFactory.newRequestHandlerChain(
                 "/com/amazonaws/services/dynamodbv2/request.handlers"));
@@ -391,9 +480,17 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
                 "/com/amazonaws/services/dynamodbv2/request.handler2s"));
     }
 
+    public RequestDebugger getRequestDebugger() {
+        return requestDebugger;
+    }
+
+    public void setRequestDebugger(RequestDebugger requestDebugger) {
+        this.requestDebugger = requestDebugger;
+    }
+
     private static ClientConfiguration adjustClientConfiguration(ClientConfiguration orig) {
         ClientConfiguration config = orig;
-        
+
         config = new ClientConfiguration(orig);
         if (config.getRetryPolicy() == com.amazonaws.retry.PredefinedRetryPolicies.DEFAULT) {
             config.setRetryPolicy(com.amazonaws.retry.PredefinedRetryPolicies.DYNAMODB_DEFAULT);
@@ -429,10 +526,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *
      * @param scanRequest Container for the necessary parameters to execute
      *           the Scan service method on AmazonDynamoDBv2.
-     * 
+     *
      * @return The response from the Scan service method, as returned by
      *         AmazonDynamoDBv2.
-     * 
+     *
      * @throws ResourceNotFoundException
      * @throws ProvisionedThroughputExceededException
      * @throws InternalServerErrorException
@@ -445,13 +542,14 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public ScanResult scan(ScanRequest scanRequest) {
         ExecutionContext executionContext = createExecutionContext(scanRequest);
         AWSRequestMetrics awsRequestMetrics = executionContext.getAwsRequestMetrics();
         awsRequestMetrics.startEvent(Field.ClientExecuteTime);
         Request<ScanRequest> request = null;
         Response<ScanResult> response = null;
-        
+
         try {
             awsRequestMetrics.startEvent(Field.RequestMarshallTime);
             try {
@@ -465,12 +563,12 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
                 new ScanResultJsonUnmarshaller();
             JsonResponseHandler<ScanResult> responseHandler =
                 new JsonResponseHandler<ScanResult>(unmarshaller);
-            
+
             response = invoke(request, responseHandler, executionContext);
-            
+
             return response.getAwsResponse();
         } finally {
-            
+
             endClientExecution(awsRequestMetrics, request, response, LOGGING_AWS_REQUEST_METRIC);
         }
     }
@@ -504,10 +602,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *
      * @param updateTableRequest Container for the necessary parameters to
      *           execute the UpdateTable service method on AmazonDynamoDBv2.
-     * 
+     *
      * @return The response from the UpdateTable service method, as returned
      *         by AmazonDynamoDBv2.
-     * 
+     *
      * @throws ResourceInUseException
      * @throws ResourceNotFoundException
      * @throws LimitExceededException
@@ -521,13 +619,14 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public UpdateTableResult updateTable(UpdateTableRequest updateTableRequest) {
         ExecutionContext executionContext = createExecutionContext(updateTableRequest);
         AWSRequestMetrics awsRequestMetrics = executionContext.getAwsRequestMetrics();
         awsRequestMetrics.startEvent(Field.ClientExecuteTime);
         Request<UpdateTableRequest> request = null;
         Response<UpdateTableResult> response = null;
-        
+
         try {
             awsRequestMetrics.startEvent(Field.RequestMarshallTime);
             try {
@@ -541,12 +640,12 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
                 new UpdateTableResultJsonUnmarshaller();
             JsonResponseHandler<UpdateTableResult> responseHandler =
                 new JsonResponseHandler<UpdateTableResult>(unmarshaller);
-            
+
             response = invoke(request, responseHandler, executionContext);
-            
+
             return response.getAwsResponse();
         } finally {
-            
+
             endClientExecution(awsRequestMetrics, request, response, LOGGING_AWS_REQUEST_METRIC);
         }
     }
@@ -577,10 +676,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *
      * @param deleteTableRequest Container for the necessary parameters to
      *           execute the DeleteTable service method on AmazonDynamoDBv2.
-     * 
+     *
      * @return The response from the DeleteTable service method, as returned
      *         by AmazonDynamoDBv2.
-     * 
+     *
      * @throws ResourceInUseException
      * @throws ResourceNotFoundException
      * @throws LimitExceededException
@@ -594,13 +693,14 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public DeleteTableResult deleteTable(DeleteTableRequest deleteTableRequest) {
         ExecutionContext executionContext = createExecutionContext(deleteTableRequest);
         AWSRequestMetrics awsRequestMetrics = executionContext.getAwsRequestMetrics();
         awsRequestMetrics.startEvent(Field.ClientExecuteTime);
         Request<DeleteTableRequest> request = null;
         Response<DeleteTableResult> response = null;
-        
+
         try {
             awsRequestMetrics.startEvent(Field.RequestMarshallTime);
             try {
@@ -614,12 +714,12 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
                 new DeleteTableResultJsonUnmarshaller();
             JsonResponseHandler<DeleteTableResult> responseHandler =
                 new JsonResponseHandler<DeleteTableResult>(unmarshaller);
-            
+
             response = invoke(request, responseHandler, executionContext);
-            
+
             return response.getAwsResponse();
         } finally {
-            
+
             endClientExecution(awsRequestMetrics, request, response, LOGGING_AWS_REQUEST_METRIC);
         }
     }
@@ -688,7 +788,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * If one or more of the following is true, DynamoDB rejects the entire
      * batch write operation:
      * </p>
-     * 
+     *
      * <ul>
      * <li> <p>
      * One or more tables specified in the <i>BatchWriteItem</i> request
@@ -714,15 +814,15 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * Any individual item in a batch exceeds 64 KB.
      * </p>
      * </li>
-     * 
+     *
      * </ul>
      *
      * @param batchWriteItemRequest Container for the necessary parameters to
      *           execute the BatchWriteItem service method on AmazonDynamoDBv2.
-     * 
+     *
      * @return The response from the BatchWriteItem service method, as
      *         returned by AmazonDynamoDBv2.
-     * 
+     *
      * @throws ItemCollectionSizeLimitExceededException
      * @throws ResourceNotFoundException
      * @throws ProvisionedThroughputExceededException
@@ -736,13 +836,14 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public BatchWriteItemResult batchWriteItem(BatchWriteItemRequest batchWriteItemRequest) {
         ExecutionContext executionContext = createExecutionContext(batchWriteItemRequest);
         AWSRequestMetrics awsRequestMetrics = executionContext.getAwsRequestMetrics();
         awsRequestMetrics.startEvent(Field.ClientExecuteTime);
         Request<BatchWriteItemRequest> request = null;
         Response<BatchWriteItemResult> response = null;
-        
+
         try {
             awsRequestMetrics.startEvent(Field.RequestMarshallTime);
             try {
@@ -756,12 +857,12 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
                 new BatchWriteItemResultJsonUnmarshaller();
             JsonResponseHandler<BatchWriteItemResult> responseHandler =
                 new JsonResponseHandler<BatchWriteItemResult>(unmarshaller);
-            
+
             response = invoke(request, responseHandler, executionContext);
-            
+
             return response.getAwsResponse();
         } finally {
-            
+
             endClientExecution(awsRequestMetrics, request, response, LOGGING_AWS_REQUEST_METRIC);
         }
     }
@@ -775,10 +876,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *
      * @param describeTableRequest Container for the necessary parameters to
      *           execute the DescribeTable service method on AmazonDynamoDBv2.
-     * 
+     *
      * @return The response from the DescribeTable service method, as
      *         returned by AmazonDynamoDBv2.
-     * 
+     *
      * @throws ResourceNotFoundException
      * @throws InternalServerErrorException
      *
@@ -790,13 +891,14 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public DescribeTableResult describeTable(DescribeTableRequest describeTableRequest) {
         ExecutionContext executionContext = createExecutionContext(describeTableRequest);
         AWSRequestMetrics awsRequestMetrics = executionContext.getAwsRequestMetrics();
         awsRequestMetrics.startEvent(Field.ClientExecuteTime);
         Request<DescribeTableRequest> request = null;
         Response<DescribeTableResult> response = null;
-        
+
         try {
             awsRequestMetrics.startEvent(Field.RequestMarshallTime);
             try {
@@ -810,12 +912,12 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
                 new DescribeTableResultJsonUnmarshaller();
             JsonResponseHandler<DescribeTableResult> responseHandler =
                 new JsonResponseHandler<DescribeTableResult>(unmarshaller);
-            
+
             response = invoke(request, responseHandler, executionContext);
-            
+
             return response.getAwsResponse();
         } finally {
-            
+
             endClientExecution(awsRequestMetrics, request, response, LOGGING_AWS_REQUEST_METRIC);
         }
     }
@@ -836,10 +938,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *
      * @param getItemRequest Container for the necessary parameters to
      *           execute the GetItem service method on AmazonDynamoDBv2.
-     * 
+     *
      * @return The response from the GetItem service method, as returned by
      *         AmazonDynamoDBv2.
-     * 
+     *
      * @throws ResourceNotFoundException
      * @throws ProvisionedThroughputExceededException
      * @throws InternalServerErrorException
@@ -852,13 +954,14 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public GetItemResult getItem(GetItemRequest getItemRequest) {
         ExecutionContext executionContext = createExecutionContext(getItemRequest);
         AWSRequestMetrics awsRequestMetrics = executionContext.getAwsRequestMetrics();
         awsRequestMetrics.startEvent(Field.ClientExecuteTime);
         Request<GetItemRequest> request = null;
         Response<GetItemResult> response = null;
-        
+
         try {
             awsRequestMetrics.startEvent(Field.RequestMarshallTime);
             try {
@@ -872,12 +975,12 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
                 new GetItemResultJsonUnmarshaller();
             JsonResponseHandler<GetItemResult> responseHandler =
                 new JsonResponseHandler<GetItemResult>(unmarshaller);
-            
+
             response = invoke(request, responseHandler, executionContext);
-            
+
             return response.getAwsResponse();
         } finally {
-            
+
             endClientExecution(awsRequestMetrics, request, response, LOGGING_AWS_REQUEST_METRIC);
         }
     }
@@ -906,10 +1009,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *
      * @param deleteItemRequest Container for the necessary parameters to
      *           execute the DeleteItem service method on AmazonDynamoDBv2.
-     * 
+     *
      * @return The response from the DeleteItem service method, as returned
      *         by AmazonDynamoDBv2.
-     * 
+     *
      * @throws ItemCollectionSizeLimitExceededException
      * @throws ResourceNotFoundException
      * @throws ConditionalCheckFailedException
@@ -924,13 +1027,14 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public DeleteItemResult deleteItem(DeleteItemRequest deleteItemRequest) {
         ExecutionContext executionContext = createExecutionContext(deleteItemRequest);
         AWSRequestMetrics awsRequestMetrics = executionContext.getAwsRequestMetrics();
         awsRequestMetrics.startEvent(Field.ClientExecuteTime);
         Request<DeleteItemRequest> request = null;
         Response<DeleteItemResult> response = null;
-        
+
         try {
             awsRequestMetrics.startEvent(Field.RequestMarshallTime);
             try {
@@ -944,12 +1048,12 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
                 new DeleteItemResultJsonUnmarshaller();
             JsonResponseHandler<DeleteItemResult> responseHandler =
                 new JsonResponseHandler<DeleteItemResult>(unmarshaller);
-            
+
             response = invoke(request, responseHandler, executionContext);
-            
+
             return response.getAwsResponse();
         } finally {
-            
+
             endClientExecution(awsRequestMetrics, request, response, LOGGING_AWS_REQUEST_METRIC);
         }
     }
@@ -980,10 +1084,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *
      * @param createTableRequest Container for the necessary parameters to
      *           execute the CreateTable service method on AmazonDynamoDBv2.
-     * 
+     *
      * @return The response from the CreateTable service method, as returned
      *         by AmazonDynamoDBv2.
-     * 
+     *
      * @throws ResourceInUseException
      * @throws LimitExceededException
      * @throws InternalServerErrorException
@@ -996,13 +1100,14 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public CreateTableResult createTable(CreateTableRequest createTableRequest) {
         ExecutionContext executionContext = createExecutionContext(createTableRequest);
         AWSRequestMetrics awsRequestMetrics = executionContext.getAwsRequestMetrics();
         awsRequestMetrics.startEvent(Field.ClientExecuteTime);
         Request<CreateTableRequest> request = null;
         Response<CreateTableResult> response = null;
-        
+
         try {
             awsRequestMetrics.startEvent(Field.RequestMarshallTime);
             try {
@@ -1016,12 +1121,12 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
                 new CreateTableResultJsonUnmarshaller();
             JsonResponseHandler<CreateTableResult> responseHandler =
                 new JsonResponseHandler<CreateTableResult>(unmarshaller);
-            
+
             response = invoke(request, responseHandler, executionContext);
-            
+
             return response.getAwsResponse();
         } finally {
-            
+
             endClientExecution(awsRequestMetrics, request, response, LOGGING_AWS_REQUEST_METRIC);
         }
     }
@@ -1059,10 +1164,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *
      * @param queryRequest Container for the necessary parameters to execute
      *           the Query service method on AmazonDynamoDBv2.
-     * 
+     *
      * @return The response from the Query service method, as returned by
      *         AmazonDynamoDBv2.
-     * 
+     *
      * @throws ResourceNotFoundException
      * @throws ProvisionedThroughputExceededException
      * @throws InternalServerErrorException
@@ -1075,13 +1180,14 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public QueryResult query(QueryRequest queryRequest) {
         ExecutionContext executionContext = createExecutionContext(queryRequest);
         AWSRequestMetrics awsRequestMetrics = executionContext.getAwsRequestMetrics();
         awsRequestMetrics.startEvent(Field.ClientExecuteTime);
         Request<QueryRequest> request = null;
         Response<QueryResult> response = null;
-        
+
         try {
             awsRequestMetrics.startEvent(Field.RequestMarshallTime);
             try {
@@ -1095,12 +1201,12 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
                 new QueryResultJsonUnmarshaller();
             JsonResponseHandler<QueryResult> responseHandler =
                 new JsonResponseHandler<QueryResult>(unmarshaller);
-            
+
             response = invoke(request, responseHandler, executionContext);
-            
+
             return response.getAwsResponse();
         } finally {
-            
+
             endClientExecution(awsRequestMetrics, request, response, LOGGING_AWS_REQUEST_METRIC);
         }
     }
@@ -1144,10 +1250,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *
      * @param putItemRequest Container for the necessary parameters to
      *           execute the PutItem service method on AmazonDynamoDBv2.
-     * 
+     *
      * @return The response from the PutItem service method, as returned by
      *         AmazonDynamoDBv2.
-     * 
+     *
      * @throws ItemCollectionSizeLimitExceededException
      * @throws ResourceNotFoundException
      * @throws ConditionalCheckFailedException
@@ -1162,13 +1268,14 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public PutItemResult putItem(PutItemRequest putItemRequest) {
         ExecutionContext executionContext = createExecutionContext(putItemRequest);
         AWSRequestMetrics awsRequestMetrics = executionContext.getAwsRequestMetrics();
         awsRequestMetrics.startEvent(Field.ClientExecuteTime);
         Request<PutItemRequest> request = null;
         Response<PutItemResult> response = null;
-        
+
         try {
             awsRequestMetrics.startEvent(Field.RequestMarshallTime);
             try {
@@ -1182,12 +1289,12 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
                 new PutItemResultJsonUnmarshaller();
             JsonResponseHandler<PutItemResult> responseHandler =
                 new JsonResponseHandler<PutItemResult>(unmarshaller);
-            
+
             response = invoke(request, responseHandler, executionContext);
-            
+
             return response.getAwsResponse();
         } finally {
-            
+
             endClientExecution(awsRequestMetrics, request, response, LOGGING_AWS_REQUEST_METRIC);
         }
     }
@@ -1201,10 +1308,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *
      * @param listTablesRequest Container for the necessary parameters to
      *           execute the ListTables service method on AmazonDynamoDBv2.
-     * 
+     *
      * @return The response from the ListTables service method, as returned
      *         by AmazonDynamoDBv2.
-     * 
+     *
      * @throws InternalServerErrorException
      *
      * @throws AmazonClientException
@@ -1215,13 +1322,14 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public ListTablesResult listTables(ListTablesRequest listTablesRequest) {
         ExecutionContext executionContext = createExecutionContext(listTablesRequest);
         AWSRequestMetrics awsRequestMetrics = executionContext.getAwsRequestMetrics();
         awsRequestMetrics.startEvent(Field.ClientExecuteTime);
         Request<ListTablesRequest> request = null;
         Response<ListTablesResult> response = null;
-        
+
         try {
             awsRequestMetrics.startEvent(Field.RequestMarshallTime);
             try {
@@ -1235,12 +1343,12 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
                 new ListTablesResultJsonUnmarshaller();
             JsonResponseHandler<ListTablesResult> responseHandler =
                 new JsonResponseHandler<ListTablesResult>(unmarshaller);
-            
+
             response = invoke(request, responseHandler, executionContext);
-            
+
             return response.getAwsResponse();
         } finally {
-            
+
             endClientExecution(awsRequestMetrics, request, response, LOGGING_AWS_REQUEST_METRIC);
         }
     }
@@ -1261,10 +1369,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *
      * @param updateItemRequest Container for the necessary parameters to
      *           execute the UpdateItem service method on AmazonDynamoDBv2.
-     * 
+     *
      * @return The response from the UpdateItem service method, as returned
      *         by AmazonDynamoDBv2.
-     * 
+     *
      * @throws ItemCollectionSizeLimitExceededException
      * @throws ResourceNotFoundException
      * @throws ConditionalCheckFailedException
@@ -1279,13 +1387,14 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public UpdateItemResult updateItem(UpdateItemRequest updateItemRequest) {
         ExecutionContext executionContext = createExecutionContext(updateItemRequest);
         AWSRequestMetrics awsRequestMetrics = executionContext.getAwsRequestMetrics();
         awsRequestMetrics.startEvent(Field.ClientExecuteTime);
         Request<UpdateItemRequest> request = null;
         Response<UpdateItemResult> response = null;
-        
+
         try {
             awsRequestMetrics.startEvent(Field.RequestMarshallTime);
             try {
@@ -1299,12 +1408,12 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
                 new UpdateItemResultJsonUnmarshaller();
             JsonResponseHandler<UpdateItemResult> responseHandler =
                 new JsonResponseHandler<UpdateItemResult>(unmarshaller);
-            
+
             response = invoke(request, responseHandler, executionContext);
-            
+
             return response.getAwsResponse();
         } finally {
-            
+
             endClientExecution(awsRequestMetrics, request, response, LOGGING_AWS_REQUEST_METRIC);
         }
     }
@@ -1366,10 +1475,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *
      * @param batchGetItemRequest Container for the necessary parameters to
      *           execute the BatchGetItem service method on AmazonDynamoDBv2.
-     * 
+     *
      * @return The response from the BatchGetItem service method, as returned
      *         by AmazonDynamoDBv2.
-     * 
+     *
      * @throws ResourceNotFoundException
      * @throws ProvisionedThroughputExceededException
      * @throws InternalServerErrorException
@@ -1382,13 +1491,14 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public BatchGetItemResult batchGetItem(BatchGetItemRequest batchGetItemRequest) {
         ExecutionContext executionContext = createExecutionContext(batchGetItemRequest);
         AWSRequestMetrics awsRequestMetrics = executionContext.getAwsRequestMetrics();
         awsRequestMetrics.startEvent(Field.ClientExecuteTime);
         Request<BatchGetItemRequest> request = null;
         Response<BatchGetItemResult> response = null;
-        
+
         try {
             awsRequestMetrics.startEvent(Field.RequestMarshallTime);
             try {
@@ -1402,12 +1512,12 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
                 new BatchGetItemResultJsonUnmarshaller();
             JsonResponseHandler<BatchGetItemResult> responseHandler =
                 new JsonResponseHandler<BatchGetItemResult>(unmarshaller);
-            
+
             response = invoke(request, responseHandler, executionContext);
-            
+
             return response.getAwsResponse();
         } finally {
-            
+
             endClientExecution(awsRequestMetrics, request, response, LOGGING_AWS_REQUEST_METRIC);
         }
     }
@@ -1418,10 +1528,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * and endpoint. The output from <i>ListTables</i> is paginated, with
      * each page returning a maximum of 100 table names.
      * </p>
-     * 
+     *
      * @return The response from the ListTables service method, as returned
      *         by AmazonDynamoDBv2.
-     * 
+     *
      * @throws InternalServerErrorException
      *
      * @throws AmazonClientException
@@ -1432,10 +1542,11 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public ListTablesResult listTables() throws AmazonServiceException, AmazonClientException {
         return listTables(new ListTablesRequest());
     }
-    
+
     /**
      * <p>
      * The <i>Scan</i> operation returns one or more items and item
@@ -1461,7 +1572,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * <a href="http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/QueryAndScan.html#QueryAndScanParallelScan"> Parallel Scan </a>
      * in the Amazon DynamoDB Developer Guide.
      * </p>
-     * 
+     *
      * @param tableName The name of the table containing the requested items.
      * @param attributesToGet The names of one or more attributes to
      * retrieve. If no attribute names are specified, then all attributes
@@ -1470,10 +1581,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * <i>AttributesToGet</i> has no effect on provisioned throughput
      * consumption. DynamoDB determines capacity units consumed based on item
      * size, not on the amount of data that is returned to an application.
-     * 
+     *
      * @return The response from the Scan service method, as returned by
      *         AmazonDynamoDBv2.
-     * 
+     *
      * @throws ResourceNotFoundException
      * @throws ProvisionedThroughputExceededException
      * @throws InternalServerErrorException
@@ -1486,6 +1597,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public ScanResult scan(String tableName, java.util.List<String> attributesToGet)
              throws AmazonServiceException, AmazonClientException  {
         ScanRequest scanRequest = new ScanRequest();
@@ -1493,7 +1605,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
         scanRequest.setAttributesToGet(attributesToGet);
         return scan(scanRequest);
     }
-    
+
     /**
      * <p>
      * The <i>Scan</i> operation returns one or more items and item
@@ -1519,7 +1631,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * <a href="http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/QueryAndScan.html#QueryAndScanParallelScan"> Parallel Scan </a>
      * in the Amazon DynamoDB Developer Guide.
      * </p>
-     * 
+     *
      * @param tableName The name of the table containing the requested items.
      * @param scanFilter Evaluates the scan results and returns only the
      * desired values. <p>If you specify more than one condition in the
@@ -1552,10 +1664,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * operators, see <a
      * href="http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Condition.html">API_Condition.html</a>.
      * </li> </ul>
-     * 
+     *
      * @return The response from the Scan service method, as returned by
      *         AmazonDynamoDBv2.
-     * 
+     *
      * @throws ResourceNotFoundException
      * @throws ProvisionedThroughputExceededException
      * @throws InternalServerErrorException
@@ -1568,6 +1680,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public ScanResult scan(String tableName, java.util.Map<String,Condition> scanFilter)
              throws AmazonServiceException, AmazonClientException  {
         ScanRequest scanRequest = new ScanRequest();
@@ -1575,7 +1688,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
         scanRequest.setScanFilter(scanFilter);
         return scan(scanRequest);
     }
-    
+
     /**
      * <p>
      * The <i>Scan</i> operation returns one or more items and item
@@ -1601,7 +1714,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * <a href="http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/QueryAndScan.html#QueryAndScanParallelScan"> Parallel Scan </a>
      * in the Amazon DynamoDB Developer Guide.
      * </p>
-     * 
+     *
      * @param tableName The name of the table containing the requested items.
      * @param attributesToGet The names of one or more attributes to
      * retrieve. If no attribute names are specified, then all attributes
@@ -1641,10 +1754,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * operators, see <a
      * href="http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Condition.html">API_Condition.html</a>.
      * </li> </ul>
-     * 
+     *
      * @return The response from the Scan service method, as returned by
      *         AmazonDynamoDBv2.
-     * 
+     *
      * @throws ResourceNotFoundException
      * @throws ProvisionedThroughputExceededException
      * @throws InternalServerErrorException
@@ -1657,6 +1770,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public ScanResult scan(String tableName, java.util.List<String> attributesToGet, java.util.Map<String,Condition> scanFilter)
              throws AmazonServiceException, AmazonClientException  {
         ScanRequest scanRequest = new ScanRequest();
@@ -1665,7 +1779,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
         scanRequest.setScanFilter(scanFilter);
         return scan(scanRequest);
     }
-    
+
     /**
      * <p>
      * Updates the provisioned throughput for the given table. Setting the
@@ -1692,7 +1806,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * You cannot add, modify or delete indexes using <i>UpdateTable</i> .
      * Indexes can only be defined at table creation time.
      * </p>
-     * 
+     *
      * @param tableName The name of the table to be updated.
      * @param provisionedThroughput Represents the provisioned throughput
      * settings for a specified table or index. The settings can be modified
@@ -1700,10 +1814,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * maximum provisioned throughput values, see <a
      * href="http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Limits.html">Limits</a>
      * in the Amazon DynamoDB Developer Guide.
-     * 
+     *
      * @return The response from the UpdateTable service method, as returned
      *         by AmazonDynamoDBv2.
-     * 
+     *
      * @throws ResourceInUseException
      * @throws ResourceNotFoundException
      * @throws LimitExceededException
@@ -1717,6 +1831,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public UpdateTableResult updateTable(String tableName, ProvisionedThroughput provisionedThroughput)
              throws AmazonServiceException, AmazonClientException  {
         UpdateTableRequest updateTableRequest = new UpdateTableRequest();
@@ -1724,7 +1839,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
         updateTableRequest.setProvisionedThroughput(provisionedThroughput);
         return updateTable(updateTableRequest);
     }
-    
+
     /**
      * <p>
      * The <i>DeleteTable</i> operation deletes a table and all of its
@@ -1748,12 +1863,12 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * <p>
      * Use the <i>DescribeTable</i> API to check the status of the table.
      * </p>
-     * 
+     *
      * @param tableName The name of the table to delete.
-     * 
+     *
      * @return The response from the DeleteTable service method, as returned
      *         by AmazonDynamoDBv2.
-     * 
+     *
      * @throws ResourceInUseException
      * @throws ResourceNotFoundException
      * @throws LimitExceededException
@@ -1767,13 +1882,14 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public DeleteTableResult deleteTable(String tableName)
              throws AmazonServiceException, AmazonClientException  {
         DeleteTableRequest deleteTableRequest = new DeleteTableRequest();
         deleteTableRequest.setTableName(tableName);
         return deleteTable(deleteTableRequest);
     }
-    
+
     /**
      * <p>
      * The <i>BatchWriteItem</i> operation puts or deletes multiple items in
@@ -1838,7 +1954,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * If one or more of the following is true, DynamoDB rejects the entire
      * batch write operation:
      * </p>
-     * 
+     *
      * <ul>
      * <li> <p>
      * One or more tables specified in the <i>BatchWriteItem</i> request
@@ -1864,9 +1980,9 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * Any individual item in a batch exceeds 64 KB.
      * </p>
      * </li>
-     * 
+     *
      * </ul>
-     * 
+     *
      * @param requestItems A map of one or more table names and, for each
      * table, a list of operations to be performed (<i>DeleteRequest</i> or
      * <i>PutRequest</i>). Each element in the map consists of the following:
@@ -1886,10 +2002,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * you specify any attributes that are part of an index key, then the
      * data types for those attributes must match those of the schema in the
      * table's attribute definition. </li> </ul> </li> </ul>
-     * 
+     *
      * @return The response from the BatchWriteItem service method, as
      *         returned by AmazonDynamoDBv2.
-     * 
+     *
      * @throws ItemCollectionSizeLimitExceededException
      * @throws ResourceNotFoundException
      * @throws ProvisionedThroughputExceededException
@@ -1903,25 +2019,26 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public BatchWriteItemResult batchWriteItem(java.util.Map<String,java.util.List<WriteRequest>> requestItems)
              throws AmazonServiceException, AmazonClientException  {
         BatchWriteItemRequest batchWriteItemRequest = new BatchWriteItemRequest();
         batchWriteItemRequest.setRequestItems(requestItems);
         return batchWriteItem(batchWriteItemRequest);
     }
-    
+
     /**
      * <p>
      * Returns information about the table, including the current status of
      * the table, when it was created, the primary key schema, and any
      * indexes on the table.
      * </p>
-     * 
+     *
      * @param tableName The name of the table to describe.
-     * 
+     *
      * @return The response from the DescribeTable service method, as
      *         returned by AmazonDynamoDBv2.
-     * 
+     *
      * @throws ResourceNotFoundException
      * @throws InternalServerErrorException
      *
@@ -1933,13 +2050,14 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public DescribeTableResult describeTable(String tableName)
              throws AmazonServiceException, AmazonClientException  {
         DescribeTableRequest describeTableRequest = new DescribeTableRequest();
         describeTableRequest.setTableName(tableName);
         return describeTable(describeTableRequest);
     }
-    
+
     /**
      * <p>
      * The <i>GetItem</i> operation returns a set of attributes for the item
@@ -1953,14 +2071,14 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * consistent read might take more time than an eventually consistent
      * read, it always returns the last updated value.
      * </p>
-     * 
+     *
      * @param tableName The name of the table containing the requested item.
      * @param key A map of attribute names to <i>AttributeValue</i> objects,
      * representing the primary key of the item to retrieve.
-     * 
+     *
      * @return The response from the GetItem service method, as returned by
      *         AmazonDynamoDBv2.
-     * 
+     *
      * @throws ResourceNotFoundException
      * @throws ProvisionedThroughputExceededException
      * @throws InternalServerErrorException
@@ -1973,6 +2091,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public GetItemResult getItem(String tableName, java.util.Map<String,AttributeValue> key)
              throws AmazonServiceException, AmazonClientException  {
         GetItemRequest getItemRequest = new GetItemRequest();
@@ -1980,7 +2099,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
         getItemRequest.setKey(key);
         return getItem(getItemRequest);
     }
-    
+
     /**
      * <p>
      * The <i>GetItem</i> operation returns a set of attributes for the item
@@ -1994,17 +2113,17 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * consistent read might take more time than an eventually consistent
      * read, it always returns the last updated value.
      * </p>
-     * 
+     *
      * @param tableName The name of the table containing the requested item.
      * @param key A map of attribute names to <i>AttributeValue</i> objects,
      * representing the primary key of the item to retrieve.
      * @param consistentRead If set to <code>true</code>, then the operation
      * uses strongly consistent reads; otherwise, eventually consistent reads
      * are used.
-     * 
+     *
      * @return The response from the GetItem service method, as returned by
      *         AmazonDynamoDBv2.
-     * 
+     *
      * @throws ResourceNotFoundException
      * @throws ProvisionedThroughputExceededException
      * @throws InternalServerErrorException
@@ -2017,6 +2136,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public GetItemResult getItem(String tableName, java.util.Map<String,AttributeValue> key, Boolean consistentRead)
              throws AmazonServiceException, AmazonClientException  {
         GetItemRequest getItemRequest = new GetItemRequest();
@@ -2025,7 +2145,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
         getItemRequest.setConsistentRead(consistentRead);
         return getItem(getItemRequest);
     }
-    
+
     /**
      * <p>
      * Deletes a single item in a table by primary key. You can perform a
@@ -2047,14 +2167,14 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * conditions are met. If those conditions are met, DynamoDB performs the
      * delete. Otherwise, the item is not deleted.
      * </p>
-     * 
+     *
      * @param tableName The name of the table from which to delete the item.
      * @param key A map of attribute names to <i>AttributeValue</i> objects,
      * representing the primary key of the item to delete.
-     * 
+     *
      * @return The response from the DeleteItem service method, as returned
      *         by AmazonDynamoDBv2.
-     * 
+     *
      * @throws ItemCollectionSizeLimitExceededException
      * @throws ResourceNotFoundException
      * @throws ConditionalCheckFailedException
@@ -2069,6 +2189,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public DeleteItemResult deleteItem(String tableName, java.util.Map<String,AttributeValue> key)
              throws AmazonServiceException, AmazonClientException  {
         DeleteItemRequest deleteItemRequest = new DeleteItemRequest();
@@ -2076,7 +2197,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
         deleteItemRequest.setKey(key);
         return deleteItem(deleteItemRequest);
     }
-    
+
     /**
      * <p>
      * Deletes a single item in a table by primary key. You can perform a
@@ -2098,7 +2219,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * conditions are met. If those conditions are met, DynamoDB performs the
      * delete. Otherwise, the item is not deleted.
      * </p>
-     * 
+     *
      * @param tableName The name of the table from which to delete the item.
      * @param key A map of attribute names to <i>AttributeValue</i> objects,
      * representing the primary key of the item to delete.
@@ -2109,10 +2230,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * its value is <code>NONE</code>, then nothing is returned. (This is the
      * default for <i>ReturnValues</i>.) </li> <li> <p><code>ALL_OLD</code> -
      * The content of the old item is returned. </li> </ul>
-     * 
+     *
      * @return The response from the DeleteItem service method, as returned
      *         by AmazonDynamoDBv2.
-     * 
+     *
      * @throws ItemCollectionSizeLimitExceededException
      * @throws ResourceNotFoundException
      * @throws ConditionalCheckFailedException
@@ -2127,6 +2248,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public DeleteItemResult deleteItem(String tableName, java.util.Map<String,AttributeValue> key, String returnValues)
              throws AmazonServiceException, AmazonClientException  {
         DeleteItemRequest deleteItemRequest = new DeleteItemRequest();
@@ -2135,7 +2257,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
         deleteItemRequest.setReturnValues(returnValues);
         return deleteItem(deleteItemRequest);
     }
-    
+
     /**
      * <p>
      * The <i>CreateTable</i> operation adds a new table to your account. In
@@ -2159,7 +2281,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * <p>
      * You can use the <i>DescribeTable</i> API to check the table status.
      * </p>
-     * 
+     *
      * @param attributeDefinitions An array of attributes that describe the
      * key schema for the table and indexes.
      * @param tableName The name of the table to create.
@@ -2188,10 +2310,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * maximum provisioned throughput values, see <a
      * href="http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Limits.html">Limits</a>
      * in the Amazon DynamoDB Developer Guide.
-     * 
+     *
      * @return The response from the CreateTable service method, as returned
      *         by AmazonDynamoDBv2.
-     * 
+     *
      * @throws ResourceInUseException
      * @throws LimitExceededException
      * @throws InternalServerErrorException
@@ -2204,6 +2326,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public CreateTableResult createTable(java.util.List<AttributeDefinition> attributeDefinitions, String tableName, java.util.List<KeySchemaElement> keySchema, ProvisionedThroughput provisionedThroughput)
              throws AmazonServiceException, AmazonClientException  {
         CreateTableRequest createTableRequest = new CreateTableRequest();
@@ -2213,7 +2336,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
         createTableRequest.setProvisionedThroughput(provisionedThroughput);
         return createTable(createTableRequest);
     }
-    
+
     /**
      * <p>
      * Creates a new item, or replaces an old item with a new item. If an
@@ -2250,7 +2373,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * <a href="http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html"> Working with Items </a>
      * in the Amazon DynamoDB Developer Guide.
      * </p>
-     * 
+     *
      * @param tableName The name of the table to contain the item.
      * @param item A map of attribute name/value pairs, one for each
      * attribute. Only the primary key attributes are required; you can
@@ -2262,10 +2385,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * href="http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DataModel.html#DataModelPrimaryKey">Primary
      * Key</a> in the Amazon DynamoDB Developer Guide. <p>Each element in the
      * <i>Item</i> map is an <i>AttributeValue</i> object.
-     * 
+     *
      * @return The response from the PutItem service method, as returned by
      *         AmazonDynamoDBv2.
-     * 
+     *
      * @throws ItemCollectionSizeLimitExceededException
      * @throws ResourceNotFoundException
      * @throws ConditionalCheckFailedException
@@ -2280,6 +2403,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public PutItemResult putItem(String tableName, java.util.Map<String,AttributeValue> item)
              throws AmazonServiceException, AmazonClientException  {
         PutItemRequest putItemRequest = new PutItemRequest();
@@ -2287,7 +2411,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
         putItemRequest.setItem(item);
         return putItem(putItemRequest);
     }
-    
+
     /**
      * <p>
      * Creates a new item, or replaces an old item with a new item. If an
@@ -2324,7 +2448,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * <a href="http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html"> Working with Items </a>
      * in the Amazon DynamoDB Developer Guide.
      * </p>
-     * 
+     *
      * @param tableName The name of the table to contain the item.
      * @param item A map of attribute name/value pairs, one for each
      * attribute. Only the primary key attributes are required; you can
@@ -2345,10 +2469,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * <p><code>ALL_OLD</code> - If <i>PutItem</i> overwrote an attribute
      * name-value pair, then the content of the old item is returned. </li>
      * </ul>
-     * 
+     *
      * @return The response from the PutItem service method, as returned by
      *         AmazonDynamoDBv2.
-     * 
+     *
      * @throws ItemCollectionSizeLimitExceededException
      * @throws ResourceNotFoundException
      * @throws ConditionalCheckFailedException
@@ -2363,6 +2487,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public PutItemResult putItem(String tableName, java.util.Map<String,AttributeValue> item, String returnValues)
              throws AmazonServiceException, AmazonClientException  {
         PutItemRequest putItemRequest = new PutItemRequest();
@@ -2371,22 +2496,22 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
         putItemRequest.setReturnValues(returnValues);
         return putItem(putItemRequest);
     }
-    
+
     /**
      * <p>
      * Returns an array of table names associated with the current account
      * and endpoint. The output from <i>ListTables</i> is paginated, with
      * each page returning a maximum of 100 table names.
      * </p>
-     * 
+     *
      * @param exclusiveStartTableName The first table name that this
      * operation will evaluate. Use the value that was returned for
      * <i>LastEvaluatedTableName</i> in a previous operation, so that you can
      * obtain the next page of results.
-     * 
+     *
      * @return The response from the ListTables service method, as returned
      *         by AmazonDynamoDBv2.
-     * 
+     *
      * @throws InternalServerErrorException
      *
      * @throws AmazonClientException
@@ -2397,30 +2522,31 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public ListTablesResult listTables(String exclusiveStartTableName)
              throws AmazonServiceException, AmazonClientException  {
         ListTablesRequest listTablesRequest = new ListTablesRequest();
         listTablesRequest.setExclusiveStartTableName(exclusiveStartTableName);
         return listTables(listTablesRequest);
     }
-    
+
     /**
      * <p>
      * Returns an array of table names associated with the current account
      * and endpoint. The output from <i>ListTables</i> is paginated, with
      * each page returning a maximum of 100 table names.
      * </p>
-     * 
+     *
      * @param exclusiveStartTableName The first table name that this
      * operation will evaluate. Use the value that was returned for
      * <i>LastEvaluatedTableName</i> in a previous operation, so that you can
      * obtain the next page of results.
      * @param limit A maximum number of table names to return. If this
      * parameter is not specified, the limit is 100.
-     * 
+     *
      * @return The response from the ListTables service method, as returned
      *         by AmazonDynamoDBv2.
-     * 
+     *
      * @throws InternalServerErrorException
      *
      * @throws AmazonClientException
@@ -2431,6 +2557,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public ListTablesResult listTables(String exclusiveStartTableName, Integer limit)
              throws AmazonServiceException, AmazonClientException  {
         ListTablesRequest listTablesRequest = new ListTablesRequest();
@@ -2438,20 +2565,20 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
         listTablesRequest.setLimit(limit);
         return listTables(listTablesRequest);
     }
-    
+
     /**
      * <p>
      * Returns an array of table names associated with the current account
      * and endpoint. The output from <i>ListTables</i> is paginated, with
      * each page returning a maximum of 100 table names.
      * </p>
-     * 
+     *
      * @param limit A maximum number of table names to return. If this
      * parameter is not specified, the limit is 100.
-     * 
+     *
      * @return The response from the ListTables service method, as returned
      *         by AmazonDynamoDBv2.
-     * 
+     *
      * @throws InternalServerErrorException
      *
      * @throws AmazonClientException
@@ -2462,13 +2589,14 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public ListTablesResult listTables(Integer limit)
              throws AmazonServiceException, AmazonClientException  {
         ListTablesRequest listTablesRequest = new ListTablesRequest();
         listTablesRequest.setLimit(limit);
         return listTables(listTablesRequest);
     }
-    
+
     /**
      * <p>
      * Edits an existing item's attributes, or inserts a new item if it does
@@ -2482,7 +2610,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * attribute values in the same operation, using the <i>ReturnValues</i>
      * parameter.
      * </p>
-     * 
+     *
      * @param tableName The name of the table containing the item to update.
      * @param key The primary key that defines the item. Each element
      * consists of an attribute name and a value for that attribute.
@@ -2557,10 +2685,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * <p>If you specify any attributes that are part of an index key, then
      * the data types for those attributes must match those of the schema in
      * the table's attribute definition.
-     * 
+     *
      * @return The response from the UpdateItem service method, as returned
      *         by AmazonDynamoDBv2.
-     * 
+     *
      * @throws ItemCollectionSizeLimitExceededException
      * @throws ResourceNotFoundException
      * @throws ConditionalCheckFailedException
@@ -2575,6 +2703,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public UpdateItemResult updateItem(String tableName, java.util.Map<String,AttributeValue> key, java.util.Map<String,AttributeValueUpdate> attributeUpdates)
              throws AmazonServiceException, AmazonClientException  {
         UpdateItemRequest updateItemRequest = new UpdateItemRequest();
@@ -2583,7 +2712,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
         updateItemRequest.setAttributeUpdates(attributeUpdates);
         return updateItem(updateItemRequest);
     }
-    
+
     /**
      * <p>
      * Edits an existing item's attributes, or inserts a new item if it does
@@ -2597,7 +2726,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * attribute values in the same operation, using the <i>ReturnValues</i>
      * parameter.
      * </p>
-     * 
+     *
      * @param tableName The name of the table containing the item to update.
      * @param key The primary key that defines the item. Each element
      * consists of an attribute name and a value for that attribute.
@@ -2685,10 +2814,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * the attributes of the new version of the item are returned. </li> <li>
      * <p><code>UPDATED_NEW</code> - The new versions of only the updated
      * attributes are returned. </li> </ul>
-     * 
+     *
      * @return The response from the UpdateItem service method, as returned
      *         by AmazonDynamoDBv2.
-     * 
+     *
      * @throws ItemCollectionSizeLimitExceededException
      * @throws ResourceNotFoundException
      * @throws ConditionalCheckFailedException
@@ -2703,6 +2832,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public UpdateItemResult updateItem(String tableName, java.util.Map<String,AttributeValue> key, java.util.Map<String,AttributeValueUpdate> attributeUpdates, String returnValues)
              throws AmazonServiceException, AmazonClientException  {
         UpdateItemRequest updateItemRequest = new UpdateItemRequest();
@@ -2712,7 +2842,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
         updateItemRequest.setReturnValues(returnValues);
         return updateItem(updateItemRequest);
     }
-    
+
     /**
      * <p>
      * The <i>BatchGetItem</i> operation returns the attributes of one or
@@ -2767,7 +2897,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * <a href="http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithTables.html#CapacityUnitCalculations"> Capacity Units Calculations </a>
      * in the Amazon DynamoDB Developer Guide.
      * </p>
-     * 
+     *
      * @param requestItems A map of one or more table names and, for each
      * table, the corresponding primary keys for the items to retrieve. Each
      * table name can be invoked only once. <p>Each element in the map
@@ -2788,10 +2918,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * If set to <code>INDEXES</code>, the response includes
      * <i>ConsumedCapacity</i> for indexes. If set to <code>NONE</code> (the
      * default), <i>ConsumedCapacity</i> is not included in the response.
-     * 
+     *
      * @return The response from the BatchGetItem service method, as returned
      *         by AmazonDynamoDBv2.
-     * 
+     *
      * @throws ResourceNotFoundException
      * @throws ProvisionedThroughputExceededException
      * @throws InternalServerErrorException
@@ -2804,6 +2934,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public BatchGetItemResult batchGetItem(java.util.Map<String,KeysAndAttributes> requestItems, String returnConsumedCapacity)
              throws AmazonServiceException, AmazonClientException  {
         BatchGetItemRequest batchGetItemRequest = new BatchGetItemRequest();
@@ -2811,7 +2942,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
         batchGetItemRequest.setReturnConsumedCapacity(returnConsumedCapacity);
         return batchGetItem(batchGetItemRequest);
     }
-    
+
     /**
      * <p>
      * The <i>BatchGetItem</i> operation returns the attributes of one or
@@ -2866,7 +2997,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * <a href="http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithTables.html#CapacityUnitCalculations"> Capacity Units Calculations </a>
      * in the Amazon DynamoDB Developer Guide.
      * </p>
-     * 
+     *
      * @param requestItems A map of one or more table names and, for each
      * table, the corresponding primary keys for the items to retrieve. Each
      * table name can be invoked only once. <p>Each element in the map
@@ -2882,10 +3013,10 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * <code>true</code>, a strongly consistent read is used; if
      * <code>false</code> (the default), an eventually consistent read is
      * used. </li> </ul>
-     * 
+     *
      * @return The response from the BatchGetItem service method, as returned
      *         by AmazonDynamoDBv2.
-     * 
+     *
      * @throws ResourceNotFoundException
      * @throws ProvisionedThroughputExceededException
      * @throws InternalServerErrorException
@@ -2898,6 +3029,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      *             If an error response is returned by AmazonDynamoDBv2 indicating
      *             either a problem with the data in the request, or a server side issue.
      */
+    @Override
     public BatchGetItemResult batchGetItem(java.util.Map<String,KeysAndAttributes> requestItems)
              throws AmazonServiceException, AmazonClientException  {
         BatchGetItemRequest batchGetItemRequest = new BatchGetItemRequest();
@@ -2931,6 +3063,7 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
      * @return The response metadata for the specified request, or null if none
      *         is available.
      */
+    @Override
     public ResponseMetadata getCachedResponseMetadata(AmazonWebServiceRequest request) {
         return client.getResponseMetadataForRequest(request);
     }
@@ -2957,9 +3090,18 @@ public class AmazonDynamoDBClient extends AmazonWebServiceClient implements Amaz
 
         executionContext.setCredentials(credentials);
         JsonErrorResponseHandler errorResponseHandler = new JsonErrorResponseHandler(jsonErrorUnmarshallers);
-        Response<X> result = client.execute(request, responseHandler,
-                errorResponseHandler, executionContext);
-        return result;
+        try {
+            Response<X> result = client.execute(request, responseHandler,
+                    errorResponseHandler, executionContext);
+            if(requestDebugger != null) {
+                requestDebugger.requestCompleted(request, responseHandler, executionContext, result);
+            }
+            return result;
+        } catch(AmazonClientException e) {
+            if(requestDebugger != null) {
+                requestDebugger.requestFailed(request, responseHandler, executionContext, e);
+            }
+            throw e;
+        }
     }
 }
-        
